@@ -115,12 +115,9 @@ getgenv().TrackDisconnection = false
 function AutoGrab()
     getgenv().AutoGrab = true
     while getgenv().AutoGrab do
-        local char = LocalPlayer.Character
-        if char and char:FindFirstChild("Events") and char.Events:FindFirstChild("Grab") then
-            pcall(function()
-                char.Events.Grab:FireServer(false, false)
-            end)
-        end
+        pcall(function()
+            LocalPlayer.Character.Events.Grab:FireServer(false, false)
+        end)
         task.wait(1.3)
     end
 end
@@ -128,12 +125,9 @@ end
 function AutoEat()
     getgenv().AutoEat = true
     while getgenv().AutoEat do
-        local char = LocalPlayer.Character
-        if char and char:FindFirstChild("Events") and char.Events:FindFirstChild("Eat") then
-            pcall(function()
-                char.Events.Eat:FireServer()
-            end)
-        end
+        pcall(function()
+            LocalPlayer.Character.Events.Eat:FireServer()
+        end)
         task.wait(0)
     end
 end
@@ -141,19 +135,16 @@ end
 function AutoTeleport()
     getgenv().AutoTeleport = true
     while getgenv().AutoTeleport do
-        local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-        if not char then task.wait(0.1) continue end
-        
-        local primary = char.PrimaryPart
-        if primary then primary.Anchored = true end
-        local parts = {}
-        for _, child in ipairs(Workspace:GetDescendants()) do
-            if child:IsA("BasePart") then table.insert(parts, child) end
-        end
-        if #parts == 0 then task.wait(0.1) continue end
-        local target = parts[math.random(1, #parts)]
-        
         pcall(function()
+            local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+            local primary = char.PrimaryPart
+            if primary then primary.Anchored = true end
+            local parts = {}
+            for _, child in ipairs(Workspace:GetDescendants()) do
+                if child:IsA("BasePart") then table.insert(parts, child) end
+            end
+            if #parts == 0 then warn("No BaseParts found") return end
+            local target = parts[math.random(1, #parts)]
             char:SetPrimaryPartCFrame(CFrame.new(target.Position))
         end)
         task.wait(getgenv().TeleportDelay or 1.0)
@@ -161,28 +152,23 @@ function AutoTeleport()
 end
 
 function UnanchorCharacter()
-    local char = LocalPlayer.Character
-    if char then
-        local primary = char.PrimaryPart
-        if primary then primary.Anchored = false end
-    end
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local primary = char.PrimaryPart
+    if primary then primary.Anchored = false end
 end
 
 function AutoSellByAmount()
     getgenv().AutoSellByAmount = true
     while getgenv().AutoSellByAmount do
-        local char = LocalPlayer.Character
-        if char and char:FindFirstChild("Events") and char.Events:FindFirstChild("Sell") then
+        pcall(function()
             local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
             if leaderstats then
                 local blockStat = leaderstats:FindFirstChild("Size") or leaderstats:FindFirstChild("Blocks") or leaderstats:FindFirstChild("Brick") or leaderstats:FindFirstChild("Bricks") or leaderstats:FindFirstChild("Block")
                 if blockStat and blockStat.Value >= (getgenv().SellAtAmount or 1000) then
-                    pcall(function()
-                        char.Events.Sell:FireServer()
-                    end)
+                    LocalPlayer.Character.Events.Sell:FireServer()
                 end
             end
-        end
+        end)
         task.wait(0.5)
     end
 end
@@ -191,12 +177,9 @@ function AutoSellBlocks()
     getgenv().AutoSellBlocks = true
     while getgenv().AutoSellBlocks do
         task.wait(getgenv().AutoSellSlider or 1)
-        local char = LocalPlayer.Character
-        if char and char:FindFirstChild("Events") and char.Events:FindFirstChild("Sell") then
-            pcall(function()
-                char.Events.Sell:FireServer()
-            end)
-        end
+        pcall(function()
+            LocalPlayer.Character.Events.Sell:FireServer()
+        end)
     end
 end
 
@@ -269,103 +252,142 @@ function SendWebhook(message)
     end
 end
 
+-- ============================================
+-- FIXED AUTO UPGRADE FUNCTIONS
+-- Uses ItemInfo priceFunction + player Upgrades level
+-- ============================================
 function AutoUpgradeMaxSize()
     getgenv().AutoUpgradeMaxSize = true
     while getgenv().AutoUpgradeMaxSize do
-        local char = LocalPlayer.Character
-        if char and char:FindFirstChild("Events") and char.Events:FindFirstChild("BuyUpgrade") then
-            local price = GetUpgradePrice("MaxSize")
-            local cubes = GetCubes()
-            if price and cubes >= price then
-                pcall(function()
-                    char.Events.BuyUpgrade:FireServer("MaxSize")
-                end)
-            end
+        local cubes = GetCubes()
+        local price = GetUpgradePrice("MaxSize")
+        
+        if price == nil then
+            task.wait(0.5)
+            continue
         end
-        task.wait(0.5)
+        
+        if cubes >= price then
+            ReplicatedStorage.Events.PurchaseEvent:FireServer("MaxSize")
+            task.wait(0.8) -- Wait for server to process + level to update
+        else
+            task.wait(0.3) -- Fast check when can't afford
+        end
     end
 end
 
 function AutoUpgradeSpeed()
     getgenv().AutoUpgradeSpeed = true
     while getgenv().AutoUpgradeSpeed do
-        local char = LocalPlayer.Character
-        if char and char:FindFirstChild("Events") and char.Events:FindFirstChild("BuyUpgrade") then
-            local price = GetUpgradePrice("Speed")
-            local cubes = GetCubes()
-            if price and cubes >= price then
-                pcall(function()
-                    char.Events.BuyUpgrade:FireServer("Speed")
-                end)
-            end
+        local cubes = GetCubes()
+        local price = GetUpgradePrice("Speed")
+        
+        if price == nil then
+            task.wait(0.5)
+            continue
         end
-        task.wait(0.5)
+        
+        if cubes >= price then
+            ReplicatedStorage.Events.PurchaseEvent:FireServer("Speed")
+            task.wait(0.8)
+        else
+            task.wait(0.3)
+        end
     end
 end
 
 function AutoUpgradeMultiplier()
     getgenv().AutoUpgradeMultiplier = true
     while getgenv().AutoUpgradeMultiplier do
-        local char = LocalPlayer.Character
-        if char and char:FindFirstChild("Events") and char.Events:FindFirstChild("BuyUpgrade") then
-            local price = GetUpgradePrice("Multiplier")
-            local cubes = GetCubes()
-            if price and cubes >= price then
-                pcall(function()
-                    char.Events.BuyUpgrade:FireServer("Multiplier")
-                end)
-            end
+        local cubes = GetCubes()
+        local price = GetUpgradePrice("Multiplier")
+        
+        if price == nil then
+            task.wait(0.5)
+            continue
         end
-        task.wait(0.5)
+        
+        if cubes >= price then
+            ReplicatedStorage.Events.PurchaseEvent:FireServer("Multiplier")
+            task.wait(0.8)
+        else
+            task.wait(0.3)
+        end
     end
 end
 
 function AutoUpgradeEatSpeed()
     getgenv().AutoUpgradeEatSpeed = true
     while getgenv().AutoUpgradeEatSpeed do
-        local char = LocalPlayer.Character
-        if char and char:FindFirstChild("Events") and char.Events:FindFirstChild("BuyUpgrade") then
-            local price = GetUpgradePrice("EatSpeed")
-            local cubes = GetCubes()
-            if price and cubes >= price then
-                pcall(function()
-                    char.Events.BuyUpgrade:FireServer("EatSpeed")
-                end)
-            end
+        local cubes = GetCubes()
+        local price = GetUpgradePrice("EatSpeed")
+        
+        if price == nil then
+            task.wait(0.5)
+            continue
         end
-        task.wait(0.5)
+        
+        if cubes >= price then
+            ReplicatedStorage.Events.PurchaseEvent:FireServer("EatSpeed")
+            task.wait(0.8)
+        else
+            task.wait(0.3)
+        end
     end
 end
 
--- Handle death/respawn - restart functions
-LocalPlayer.CharacterAdded:Connect(function()
-    task.wait(0.5)
-    if getgenv().AutoGrab then
-        task.spawn(AutoGrab)
+function SendWebhook(message)
+    local url = getgenv().WebhookUrl
+    if url == "" then return end
+    local data = {
+        username = MarketplaceService:GetProductInfo(game.PlaceId).Name,
+        embeds = {{ description = message, color = 255, timestamp = DateTime.now():ToIsoDate() }}
+    }
+    local body = HttpService:JSONEncode(data)
+    local req = http_request or request or HttpPost or syn.request
+    if req then
+        req({ Url = url, Body = body, Method = "POST", Headers = { ["content-type"] = "application/json" } })
     end
-    if getgenv().AutoEat then
-        task.spawn(AutoEat)
+end
+
+-- ============================================
+-- AUTO REWARDS (Simple - Fire all every 3s)
+-- ============================================
+
+local Events = ReplicatedStorage:WaitForChild("Events")
+local RewardEvent = Events:WaitForChild("RewardEvent")
+local SpinEvent = Events:WaitForChild("SpinEvent")
+
+-- Fire all rewards blindly every 3 seconds
+task.spawn(function()
+    while true do
+        task.wait(3)
+        
+        if not getgenv().AutoCollectRewards then continue end
+        
+        local timedRewards = LocalPlayer:FindFirstChild("TimedRewards")
+        if not timedRewards then continue end
+        
+        for _, reward in ipairs(timedRewards:GetChildren()) do
+            if reward:IsA("IntValue") or reward:IsA("NumberValue") then
+                pcall(function()
+                    RewardEvent:FireServer(reward)
+                end)
+                task.wait(0.3)
+            end
+        end
     end
-    if getgenv().AutoTeleport then
-        task.spawn(AutoTeleport)
-    end
-    if getgenv().AutoSellByAmount then
-        task.spawn(AutoSellByAmount)
-    end
-    if getgenv().AutoSellBlocks then
-        task.spawn(AutoSellBlocks)
-    end
-    if getgenv().AutoUpgradeMaxSize then
-        task.spawn(AutoUpgradeMaxSize)
-    end
-    if getgenv().AutoUpgradeSpeed then
-        task.spawn(AutoUpgradeSpeed)
-    end
-    if getgenv().AutoUpgradeMultiplier then
-        task.spawn(AutoUpgradeMultiplier)
-    end
-    if getgenv().AutoUpgradeEatSpeed then
-        task.spawn(AutoUpgradeEatSpeed)
+end)
+
+-- Auto spin every 60 seconds
+task.spawn(function()
+    while true do
+        task.wait(60)
+        if getgenv().AutoSpin then
+            pcall(function()
+                SpinEvent:FireServer()
+            end)
+        end
     end
 end)
 
@@ -378,9 +400,7 @@ Tabs.Farming:AddToggle("AutoGrab", {
     Default = false,
     Callback = function(Value)
         getgenv().AutoGrab = Value
-        if Value then
-            task.spawn(AutoGrab)
-        end
+        if Value then AutoGrab() end
     end
 })
 
@@ -389,9 +409,19 @@ Tabs.Farming:AddToggle("AutoEat", {
     Default = false,
     Callback = function(Value)
         getgenv().AutoEat = Value
-        if Value then
-            task.spawn(AutoEat)
-        end
+        if Value then AutoEat() end
+    end
+})
+
+Tabs.Farming:AddSlider("TeleportDelay", {
+    Title = "Teleport Delay",
+    Default = 1.0,
+    Min = 0,
+    Max = 3,
+    Rounding = 1,
+    Suffix = " seconds",
+    Callback = function(Value)
+        getgenv().TeleportDelay = Value
     end
 })
 
@@ -400,78 +430,48 @@ Tabs.Farming:AddToggle("AutoTeleport", {
     Default = false,
     Callback = function(Value)
         getgenv().AutoTeleport = Value
-        if Value then
-            task.spawn(AutoTeleport)
-        end
+        if Value then AutoTeleport() else UnanchorCharacter() end
     end
 })
 
-Tabs.Farming:AddInput("TeleportDelayInput", {
-    Title = "Teleport Delay",
-    Default = "1.0",
-    Placeholder = "e.g 1.5",
-    Finished = false,
+Tabs.Farming:AddInput("SellAtAmount", {
+    Title = "Sell At Amount",
+    Default = "1000",
+    Placeholder = "e.g. 1000",
+    Numeric = true,
+    Finished = true,
     Callback = function(Value)
-        local num = tonumber(Value)
-        if num then
-            getgenv().TeleportDelay = num
-        end
+        getgenv().SellAtAmount = tonumber(Value) or 1000
     end
 })
 
 Tabs.Farming:AddToggle("AutoSellByAmount", {
-    Title = "Auto Sell by Amount",
+    Title = "Sell At Amount",
     Default = false,
     Callback = function(Value)
         getgenv().AutoSellByAmount = Value
-        if Value then
-            task.spawn(AutoSellByAmount)
-        end
+        if Value then AutoSellByAmount() end
     end
 })
 
-Tabs.Farming:AddInput("SellAtAmountInput", {
-    Title = "Sell At Amount",
-    Default = "1000",
-    Placeholder = "e.g 2000",
-    Finished = false,
-    Callback = function(Value)
-        local num = tonumber(Value)
-        if num then
-            getgenv().SellAtAmount = num
-        end
-    end
-})
-
-Tabs.Farming:AddToggle("AutoSellBlocks", {
-    Title = "Auto Sell Blocks",
-    Default = false,
-    Callback = function(Value)
-        getgenv().AutoSellBlocks = Value
-        if Value then
-            task.spawn(AutoSellBlocks)
-        end
-    end
-})
-
-Tabs.Farming:AddSlider("AutoSellSliderInput", {
-    Title = "Auto Sell Interval",
+Tabs.Farming:AddSlider("SellTimer", {
+    Title = "Sell Timer",
     Default = 1,
-    Min = 0.1,
-    Max = 5,
-    Rounding = 1,
-    Suffix = " second(s)",
+    Min = 0,
+    Max = 1000,
+    Rounding = 0,
+    Suffix = " seconds",
     Callback = function(Value)
         getgenv().AutoSellSlider = Value
     end
 })
 
-Tabs.Farming:AddButton({
-    Title = "Unanchor Character",
-    Description = "Remove anchored status",
-    Callback = function()
-        UnanchorCharacter()
-        Fluent:Notify({ Title = "Character", Content = "Unanchored!", Duration = 3 })
+Tabs.Farming:AddToggle("AutoSellTimer", {
+    Title = "AutoSell Blocks (Timer)",
+    Default = false,
+    Callback = function(Value)
+        getgenv().AutoSellBlocks = Value
+        if Value then AutoSellBlocks() end
     end
 })
 
@@ -479,14 +479,25 @@ Tabs.Farming:AddButton({
 -- GUI - UPGRADES TAB
 -- ============================================
 
+Tabs.Upgrades:AddDropdown("UpgradeDropdown", {
+    Title = "Auto Upgrade Pick",
+    Values = { "Stop", "Auto Upgrade MaxSize", "Auto Upgrade Speed", "Auto Upgrade Multiplier", "Auto Upgrade EatSpeed" },
+    Multi = false,
+    Default = "Stop",
+    Callback = function(Value)
+        StopAllAutoUpgrades()
+        if Value == "Auto Upgrade MaxSize" then AutoUpgradeMaxSize()
+        elseif Value == "Auto Upgrade Speed" then AutoUpgradeSpeed()
+        elseif Value == "Auto Upgrade Multiplier" then AutoUpgradeMultiplier()
+        elseif Value == "Auto Upgrade EatSpeed" then AutoUpgradeEatSpeed() end
+    end
+})
+
 Tabs.Upgrades:AddToggle("AutoUpgradeMaxSize", {
-    Title = "Auto Upgrade Max Size",
+    Title = "Auto Upgrade MaxSize",
     Default = false,
     Callback = function(Value)
-        getgenv().AutoUpgradeMaxSize = Value
-        if Value then
-            task.spawn(AutoUpgradeMaxSize)
-        end
+        if Value then AutoUpgradeMaxSize() else getgenv().AutoUpgradeMaxSize = false end
     end
 })
 
@@ -494,10 +505,7 @@ Tabs.Upgrades:AddToggle("AutoUpgradeSpeed", {
     Title = "Auto Upgrade Speed",
     Default = false,
     Callback = function(Value)
-        getgenv().AutoUpgradeSpeed = Value
-        if Value then
-            task.spawn(AutoUpgradeSpeed)
-        end
+        if Value then AutoUpgradeSpeed() else getgenv().AutoUpgradeSpeed = false end
     end
 })
 
@@ -505,30 +513,15 @@ Tabs.Upgrades:AddToggle("AutoUpgradeMultiplier", {
     Title = "Auto Upgrade Multiplier",
     Default = false,
     Callback = function(Value)
-        getgenv().AutoUpgradeMultiplier = Value
-        if Value then
-            task.spawn(AutoUpgradeMultiplier)
-        end
+        if Value then AutoUpgradeMultiplier() else getgenv().AutoUpgradeMultiplier = false end
     end
 })
 
 Tabs.Upgrades:AddToggle("AutoUpgradeEatSpeed", {
-    Title = "Auto Upgrade Eat Speed",
+    Title = "Auto Upgrade EatSpeed",
     Default = false,
     Callback = function(Value)
-        getgenv().AutoUpgradeEatSpeed = Value
-        if Value then
-            task.spawn(AutoUpgradeEatSpeed)
-        end
-    end
-})
-
-Tabs.Upgrades:AddButton({
-    Title = "Stop All Upgrades",
-    Description = "Disable all auto upgrades",
-    Callback = function()
-        StopAllAutoUpgrades()
-        Fluent:Notify({ Title = "Upgrades", Content = "All upgrades stopped!", Duration = 3 })
+        if Value then AutoUpgradeEatSpeed() else getgenv().AutoUpgradeEatSpeed = false end
     end
 })
 
@@ -576,12 +569,7 @@ Tabs.Webhooks:AddToggle("TrackSize", {
                 while getgenv().TrackSize do
                     task.wait(getgenv().WebhookInterval or 60)
                     if getgenv().TrackSize then
-                        pcall(function()
-                            local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
-                            if leaderstats and leaderstats:FindFirstChild("Size") then
-                                SendWebhook('**Total Size:** ' .. tostring(leaderstats.Size.Value))
-                            end
-                        end)
+                        SendWebhook('**Total Size:** ' .. tostring(LocalPlayer.leaderstats.Size.Value))
                     end
                 end
             end)()
@@ -599,17 +587,15 @@ Tabs.Webhooks:AddToggle("TrackCategory", {
                 while getgenv().TrackCategory do
                     task.wait(getgenv().WebhookInterval or 60)
                     if getgenv().TrackCategory then
-                        pcall(function()
-                            local cubes = GetCubes()
-                            local maxSizePrice = GetUpgradePrice("MaxSize") or "N/A"
-                            local speedPrice = GetUpgradePrice("Speed") or "N/A"
-                            local multiplierPrice = GetUpgradePrice("Multiplier") or "N/A"
-                            local eatSpeedPrice = GetUpgradePrice("EatSpeed") or "N/A"
-                            
-                            local message = "```\n💰 WALLET: " .. tostring(cubes) .. " Cubes\n📈 AUTO MAX SIZE: " .. tostring(maxSizePrice) .. "\n⚡ AUTO SPEED: " .. tostring(speedPrice) .. "\n✖️ AUTO MULTIPLIER: " .. tostring(multiplierPrice) .. "\n🍴 AUTO EAT SPEED: " .. tostring(eatSpeedPrice) .. "\n```"
-                            
-                            SendWebhook(message)
-                        end)
+                        local cubes = GetCubes()
+                        local maxSizePrice = GetUpgradePrice("MaxSize") or "N/A"
+                        local speedPrice = GetUpgradePrice("Speed") or "N/A"
+                        local multiplierPrice = GetUpgradePrice("Multiplier") or "N/A"
+                        local eatSpeedPrice = GetUpgradePrice("EatSpeed") or "N/A"
+                        
+                        local message = "```\n💰 WALLET: " .. tostring(cubes) .. " Cubes\n📈 AUTO MAX SIZE: " .. tostring(maxSizePrice) .. "\n⚡ AUTO SPEED: " .. tostring(speedPrice) .. "\n✖️ AUTO MULTIPLIER: " .. tostring(multiplierPrice) .. "\n🍴 AUTO EAT SPEED: " .. tostring(eatSpeedPrice) .. "\n```"
+                        
+                        SendWebhook(message)
                     end
                 end
             end)()
@@ -655,24 +641,22 @@ Tabs.Rewards:AddButton({
     Title = "Collect Now",
     Description = "Manually fire all rewards once",
     Callback = function()
-        pcall(function()
-            local timedRewards = LocalPlayer:FindFirstChild("TimedRewards")
-            if not timedRewards then
-                Fluent:Notify({ Title = "Error", Content = "TimedRewards not found!", Duration = 3 })
-                return
+        local timedRewards = LocalPlayer:FindFirstChild("TimedRewards")
+        if not timedRewards then
+            Fluent:Notify({ Title = "Error", Content = "TimedRewards not found!", Duration = 3 })
+            return
+        end
+        
+        for _, reward in ipairs(timedRewards:GetChildren()) do
+            if reward:IsA("IntValue") or reward:IsA("NumberValue") then
+                pcall(function()
+                    RewardEvent:FireServer(reward)
+                end)
+                task.wait(0.3)
             end
-            
-            for _, reward in ipairs(timedRewards:GetChildren()) do
-                if reward:IsA("IntValue") or reward:IsA("NumberValue") then
-                    pcall(function()
-                        RewardEvent:FireServer(reward)
-                    end)
-                    task.wait(0.3)
-                end
-            end
-            
-            Fluent:Notify({ Title = "Rewards", Content = "Fired all rewards!", Duration = 3 })
-        end)
+        end
+        
+        Fluent:Notify({ Title = "Rewards", Content = "Fired all rewards!", Duration = 3 })
     end
 })
 
@@ -695,20 +679,18 @@ local rewardStatus = Tabs.Rewards:AddParagraph({
 task.spawn(function()
     while true do
         task.wait(3)
-        pcall(function()
-            local timedRewards = LocalPlayer:FindFirstChild("TimedRewards")
-            if timedRewards then
-                local count = 0
-                for _, child in ipairs(timedRewards:GetChildren()) do
-                    if child:IsA("IntValue") or child:IsA("NumberValue") then
-                        count = count + 1
-                    end
+        local timedRewards = LocalPlayer:FindFirstChild("TimedRewards")
+        if timedRewards then
+            local count = 0
+            for _, child in ipairs(timedRewards:GetChildren()) do
+                if child:IsA("IntValue") or child:IsA("NumberValue") then
+                    count = count + 1
                 end
-                rewardStatus:SetContent(count .. " rewards | Auto: " .. (getgenv().AutoCollectRewards and "ON" or "OFF"))
-            else
-                rewardStatus:SetContent("TimedRewards not found")
             end
-        end)
+            rewardStatus:SetContent(count .. " rewards | Auto: " .. (getgenv().AutoCollectRewards and "ON" or "OFF"))
+        else
+            rewardStatus:SetContent("TimedRewards not found")
+        end
     end
 end)
 
@@ -718,7 +700,7 @@ end)
 
 Tabs.Credits:AddParagraph({
     Title = "Credits/Updates",
-    Content = "Owners: Miyavi\nLatest Update: 9/26/26\n[+] Fixed AutoUpgrade using ItemInfo module\n[+] Fixed death/respawn callback errors"
+    Content = "Owners: Miyavi\nLatest Update: 9/26/26\n[+] Fixed AutoUpgrade using ItemInfo module"
 })
 
 Tabs.Credits:AddButton({
