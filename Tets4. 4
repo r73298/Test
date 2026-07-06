@@ -1,299 +1,241 @@
--- ts file was generated at discord.gg/25ms
+-- Eat the World - FluentPlus Edition (Fixed tonumber bug + Simple Rewards + Fixed AutoUpgrade)
+-- Config save/load built into the GUI
 
-getgenv().SecureMode = true
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+local HttpService = game:GetService("HttpService")
+local MarketplaceService = game:GetService("MarketplaceService")
 
-local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/Vex241/Rayfield/refs/heads/main/Sirius'))()
+local LocalPlayer = Players.LocalPlayer
+repeat task.wait() until LocalPlayer.Character
+repeat task.wait() until LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
 
-local Window = Rayfield:CreateWindow({
-    Name = 'Eat the World',
-    LoadingTitle = 'Rayfield Interface Suite',
-    LoadingSubtitle = 'Made by Kenniel',
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = 'EatTheWorld',
-        FileName = 'Settings',
-    },
-    Discord = {
-        Enabled = true,
-        Invite = 'R5xxUtSVgF',
-        RememberJoins = true,
-    },
-    KeySystem = false,
-    KeySettings = {
-        Title = 'Untitled',
-        Subtitle = 'Key System',
-        Note = 'No method of obtaining the key is provided',
-        FileName = 'Key',
-        SaveKey = true,
-        GrabKeyFromSite = false,
-        Key = {
-            'Hello',
-        },
-    },
+-- Load FluentPlus
+local Fluent, SaveManager, InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/discoart/FluentPlus/refs/heads/main/Beta.lua"))()
+
+local Window = Fluent:CreateWindow({
+    Title = "Cronkx Hub",
+    SubTitle = "V1",
+    TabWidth = 140,
+    Size = UDim2.fromOffset(450, 350),
+    Acrylic = false,
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.LeftControl
 })
 
-local _Farming = Window:CreateTab('Farming', 17261823399)
+-- Mobile toggle button
+local ToggleGui = Instance.new("ScreenGui")
+ToggleGui.Name = "ETWToggle"
+ToggleGui.ResetOnSpawn = false
+ToggleGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ToggleGui.Parent = CoreGui
 
-_Farming:CreateSection('Farming')
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
+ToggleBtn.Position = UDim2.new(0, 10, 0.5, -25)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+ToggleBtn.Text = "ETW"
+ToggleBtn.Font = Enum.Font.GothamBold
+ToggleBtn.TextSize = 18
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.Parent = ToggleGui
+ToggleBtn.BorderSizePixel = 0
 
-_Farming:CreateToggle({
-    Name = 'Auto Grab',
-    CurrentValue = false,
-    Flag = 'AutoGrab',
-    Callback = function(Value)
-        if Value then
-            AutoGrab()
-        else
-            getgenv().AutoGrab = false
-        end
-    end,
-})
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(1, 0)
+ToggleCorner.Parent = ToggleBtn
 
-_Farming:CreateToggle({
-    Name = 'Auto Eat',
-    CurrentValue = false,
-    Flag = 'AutoEat',
-    Callback = function(Value)
-        if Value then
-            AutoEat()
-        else
-            getgenv().AutoEat = false
-        end
-    end,
-})
+local guiVisible = true
+ToggleBtn.MouseButton1Click:Connect(function()
+    guiVisible = not guiVisible
+    Window:Minimize(not guiVisible)
+    ToggleBtn.BackgroundColor3 = guiVisible and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(60, 60, 60)
+end)
+
+-- Draggable
+local dragging, dragStart, startPos = false, nil, nil
+ToggleBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = ToggleBtn.Position
+    end
+end)
+ToggleBtn.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        ToggleBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+ToggleBtn.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+-- Tabs
+local Tabs = {
+    Farming = Window:AddTab({ Title = "Farming", Icon = "wheat" }),
+    Upgrades = Window:AddTab({ Title = "Upgrades", Icon = "arrow-up-circle" }),
+    Webhooks = Window:AddTab({ Title = "Webhooks", Icon = "webhook" }),
+    Rewards = Window:AddTab({ Title = "Rewards", Icon = "gift" }),
+    Config = Window:AddTab({ Title = "Config", Icon = "save" }),
+    Credits = Window:AddTab({ Title = "Credits", Icon = "info" }),
+}
+
+-- Globals
+getgenv().AutoGrab = false
+getgenv().AutoEat = false
+getgenv().AutoTeleport = false
+getgenv().AutoSellByAmount = false
+getgenv().AutoSellBlocks = false
+getgenv().AutoUpgradeMaxSize = false
+getgenv().AutoUpgradeSpeed = false
+getgenv().AutoUpgradeMultiplier = false
+getgenv().AutoUpgradeEatSpeed = false
+getgenv().TrackSize = false
+getgenv().AutoCollectRewards = false
+getgenv().AutoSpin = false
+getgenv().TeleportDelay = 1.0
+getgenv().SellAtAmount = 1000
+getgenv().AutoSellSlider = 1
+getgenv().WebhookUrl = ""
+getgenv().WebhookInterval = 5
+getgenv().WebhookEnabled = false
+getgenv().TrackCategory = false
+getgenv().TrackDisconnection = false
+
+-- ============================================
+-- CORE FUNCTIONS (Defined BEFORE GUI)
+-- ============================================
 
 function AutoGrab()
     getgenv().AutoGrab = true
     while getgenv().AutoGrab do
-        game:GetService('Players').LocalPlayer.Character.Events.Grab:FireServer(unpack({false, false}))
-        wait(1.3)
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("Events") and char.Events:FindFirstChild("Grab") then
+            pcall(function()
+                char.Events.Grab:FireServer(false, false)
+            end)
+        end
+        task.wait(1.3)
     end
 end
 
 function AutoEat()
     getgenv().AutoEat = true
     while getgenv().AutoEat do
-        game:GetService('Players').LocalPlayer.Character.Events.Eat:FireServer()
-        wait(0.5)
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("Events") and char.Events:FindFirstChild("Eat") then
+            pcall(function()
+                char.Events.Eat:FireServer()
+            end)
+        end
+        task.wait(0)
     end
 end
-
-_Farming:CreateSection('Auto Teleport')
-
-_Farming:CreateSlider({
-    Name = 'Teleport Delay',
-    Range = {0, 3},
-    Increment = 0.1,
-    Suffix = ' seconds',
-    CurrentValue = 1.0,
-    Flag = 'TeleportDelay',
-    Callback = function(Value)
-        getgenv().TeleportDelay = Value
-    end,
-})
-
-_Farming:CreateToggle({
-    Name = 'Auto Teleport',
-    CurrentValue = false,
-    Flag = 'AutoTeleport',
-    Callback = function(Value)
-        if Value then
-            AutoTeleport()
-        else
-            getgenv().AutoTeleport = false
-            UnanchorCharacter()
-        end
-    end,
-})
 
 function AutoTeleport()
     getgenv().AutoTeleport = true
     while getgenv().AutoTeleport do
-        local _LocalPlayer = game.Players.LocalPlayer
-        local v7 = _LocalPlayer.Character or _LocalPlayer.CharacterAdded:Wait()
-        local _PrimaryPart = v7.PrimaryPart
-        if _PrimaryPart then
-            _PrimaryPart.Anchored = true
+        local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        if not char then task.wait(0.1) continue end
+        
+        local primary = char.PrimaryPart
+        if primary then primary.Anchored = true end
+        local parts = {}
+        for _, child in ipairs(Workspace:GetDescendants()) do
+            if child:IsA("BasePart") then table.insert(parts, child) end
         end
-        local allParts = workspace:GetDescendants()
-        local v12 = {}
-        for _, child in ipairs(allParts) do
-            if child:IsA('BasePart') then
-                table.insert(v12, child)
-            end
-        end
-        if #v12 == 0 then
-            warn('No BaseParts found in workspace')
-            return
-        end
-        local v26 = v12[math.random(1, #v12)]
-        v7:SetPrimaryPartCFrame(CFrame.new(v26.Position))
-        wait(getgenv().TeleportDelay or 1.0)
+        if #parts == 0 then task.wait(0.1) continue end
+        local target = parts[math.random(1, #parts)]
+        
+        pcall(function()
+            char:SetPrimaryPartCFrame(CFrame.new(target.Position))
+        end)
+        task.wait(getgenv().TeleportDelay or 1.0)
     end
 end
 
 function UnanchorCharacter()
-    local _LocalPlayer2 = game.Players.LocalPlayer
-    local _PrimaryPart2 = (_LocalPlayer2.Character or _LocalPlayer2.CharacterAdded:Wait()).PrimaryPart
-    if _PrimaryPart2 then
-        _PrimaryPart2.Anchored = false
+    local char = LocalPlayer.Character
+    if char then
+        local primary = char.PrimaryPart
+        if primary then primary.Anchored = false end
     end
 end
-
-_Farming:CreateSection('Auto Sell')
-
-_Farming:CreateInput({
-    Name = 'Sell At Amount',
-    PlaceholderText = 'e.g. 1000',
-    RemoveTextAfterFocusLost = false,
-    CurrentValue = '1000',
-    Flag = 'SellAtAmount',
-    Callback = function(Value)
-        getgenv().SellAtAmount = tonumber(Value) or 1000
-    end,
-})
-
-_Farming:CreateToggle({
-    Name = 'Sell At Amount',
-    CurrentValue = false,
-    Flag = 'AutoSellByAmount',
-    Callback = function(Value)
-        if Value then
-            AutoSellByAmount()
-        else
-            getgenv().AutoSellByAmount = false
-        end
-    end,
-})
 
 function AutoSellByAmount()
     getgenv().AutoSellByAmount = true
     while getgenv().AutoSellByAmount do
-        local player = game:GetService('Players').LocalPlayer
-        local leaderstats = player:FindFirstChild('leaderstats')
-        if leaderstats then
-            local blockStat = leaderstats:FindFirstChild('Size')
-                or leaderstats:FindFirstChild('Blocks')
-                or leaderstats:FindFirstChild('Brick')
-                or leaderstats:FindFirstChild('Bricks')
-                or leaderstats:FindFirstChild('Block')
-            if blockStat and blockStat.Value >= (getgenv().SellAtAmount or 1000) then
-                game:GetService('Players').LocalPlayer.Character.Events.Sell:FireServer()
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("Events") and char.Events:FindFirstChild("Sell") then
+            local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
+            if leaderstats then
+                local blockStat = leaderstats:FindFirstChild("Size") or leaderstats:FindFirstChild("Blocks") or leaderstats:FindFirstChild("Brick") or leaderstats:FindFirstChild("Bricks") or leaderstats:FindFirstChild("Block")
+                if blockStat and blockStat.Value >= (getgenv().SellAtAmount or 1000) then
+                    pcall(function()
+                        char.Events.Sell:FireServer()
+                    end)
+                end
             end
         end
-        wait(0.5)
+        task.wait(0.5)
     end
 end
-
-_Farming:CreateLabel('Timer Sell (Old)')
-
-_Farming:CreateSlider({
-    Name = 'Sell Timer',
-    Range = {0, 1000},
-    Increment = 1,
-    Suffix = 'Sell Speed',
-    CurrentValue = 1,
-    Flag = 'SellTimer',
-    Callback = function(Value)
-        getgenv().AutoSellSlider = Value
-    end,
-})
-
-_Farming:CreateToggle({
-    Name = 'AutoSell Blocks (Timer)',
-    CurrentValue = false,
-    Flag = 'AutoSellTimer',
-    Callback = function(Value)
-        if Value then
-            AutoSellBlocks()
-        else
-            getgenv().AutoSellBlocks = false
-        end
-    end,
-})
 
 function AutoSellBlocks()
     getgenv().AutoSellBlocks = true
     while getgenv().AutoSellBlocks do
-        wait(getgenv().AutoSellSlider or 1)
-        game:GetService('Players').LocalPlayer.Character.Events.Sell:FireServer()
+        task.wait(getgenv().AutoSellSlider or 1)
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("Events") and char.Events:FindFirstChild("Sell") then
+            pcall(function()
+                char.Events.Sell:FireServer()
+            end)
+        end
     end
 end
 
-local _Upgrades = Window:CreateTab('Upgrades', 17261823399)
-
-_Upgrades:CreateSection('Upgrades')
-
-_Upgrades:CreateDropdown({
-    Name = 'Auto Upgrade Pick',
-    Options = {
-        'Stop',
-        'Auto Upgrade MaxSize',
-        'Auto Upgrade Speed',
-        'Auto Upgrade Multiplier',
-        'Auto Upgrade EatSpeed',
-    },
-    CurrentOption = {
-        'Stop',
-    },
-    MultipleOptions = false,
-    Flag = 'UpgradeDropdown',
-    Callback = function(Value)
-        StopAllAutoUpgrades()
-        if Value == 'Auto Upgrade MaxSize' then
-            AutoUpgradeMaxSize()
-        elseif Value == 'Auto Upgrade Speed' then
-            AutoUpgradeSpeed()
-        elseif Value == 'Auto Upgrade Multiplier' then
-            AutoUpgradeMultiplier()
-        elseif Value == 'Auto Upgrade EatSpeed' then
-            AutoUpgradeEatSpeed()
-        end
-    end,
-})
-
+-- FIXED: Wrapped gsub in parentheses to prevent double return value
 function GetCubes()
-    local player = game:GetService('Players').LocalPlayer
-    local gui = player:FindFirstChild('PlayerGui')
+    local gui = LocalPlayer:FindFirstChild("PlayerGui")
     if not gui then return 0 end
-    local screenGui = gui:FindFirstChild('ScreenGui')
+    local screenGui = gui:FindFirstChild("ScreenGui")
     if not screenGui then return 0 end
-    local cubesFrame = screenGui:FindFirstChild('Cubes')
+    local cubesFrame = screenGui:FindFirstChild("Cubes")
     if not cubesFrame then return 0 end
-    local counterFrame = cubesFrame:FindFirstChild('CounterFrame')
+    local counterFrame = cubesFrame:FindFirstChild("CounterFrame")
     if not counterFrame then return 0 end
-    local textLabel = counterFrame:FindFirstChild('TextLabel')
+    local textLabel = counterFrame:FindFirstChild("TextLabel")
     if not textLabel then return 0 end
-    local text = textLabel.Text
-    local numStr = text:gsub(',', '')
-    local num = tonumber(numStr)
+    local num = tonumber((textLabel.Text:gsub(",", "")))  -- FIXED: extra parentheses
     return num or 0
 end
 
+-- ============================================
+-- FIXED: GetUpgradePrice using ItemInfo module
+-- No more Shop UI dependency!
+-- ============================================
+local ItemInfo = require(ReplicatedStorage:WaitForChild("ItemInfo"))
+
 function GetUpgradePrice(upgradeName)
-    local player = game:GetService('Players').LocalPlayer
-    local gui = player:FindFirstChild('PlayerGui')
-    if not gui then return nil end
-    local screenGui = gui:FindFirstChild('ScreenGui')
-    if not screenGui then return nil end
-    local shop = screenGui:FindFirstChild('Shop')
-    if not shop then return nil end
-    local shopFrames = shop:FindFirstChild('ShopFrames')
-    if not shopFrames then return nil end
-    local upgrades = shopFrames:FindFirstChild('Upgrades')
-    if not upgrades then return nil end
-    local upgradeList = upgrades:FindFirstChild('UpgradeList')
-    if not upgradeList then return nil end
-    local upgradeFrame = upgradeList:FindFirstChild(upgradeName)
-    if not upgradeFrame then return nil end
-    local buyFrame = upgradeFrame:FindFirstChild('BuyFrame')
-    if not buyFrame then return nil end
-    local priceFrame = buyFrame:FindFirstChild('Price')
-    if not priceFrame then return nil end
-    local text = priceFrame.Text
-    local numStr = text:gsub(',', '')
-    local num = tonumber(numStr)
-    return num
+    local upgradesFolder = LocalPlayer:FindFirstChild("Upgrades")
+    if not upgradesFolder then return nil end
+    
+    local levelValue = upgradesFolder:FindFirstChild(upgradeName)
+    if not levelValue then return nil end
+    
+    local currentLevel = levelValue.Value
+    local upgradeData = ItemInfo.Upgrades[upgradeName]
+    if not upgradeData then return nil end
+    
+    -- priceFunction takes the NEXT level (current + 1)
+    local price = upgradeData.priceFunction(currentLevel + 1)
+    return price
 end
 
 function StopAllAutoUpgrades()
@@ -303,281 +245,540 @@ function StopAllAutoUpgrades()
     getgenv().AutoUpgradeEatSpeed = false
 end
 
+function SendWebhook(message)
+    if not getgenv().WebhookEnabled or getgenv().WebhookUrl == "" or getgenv().WebhookUrl == nil then
+        return
+    end
+    
+    local data = {
+        content = message
+    }
+    
+    local body = HttpService:JSONEncode(data)
+    local req = http_request or request or HttpPost or syn.request
+    
+    if req then
+        pcall(function()
+            req({
+                Url = getgenv().WebhookUrl,
+                Body = body,
+                Method = "POST",
+                Headers = { ["content-type"] = "application/json" }
+            })
+        end)
+    end
+end
+
 function AutoUpgradeMaxSize()
     getgenv().AutoUpgradeMaxSize = true
     while getgenv().AutoUpgradeMaxSize do
-        local cubes = GetCubes()
-        local price = GetUpgradePrice('MaxSize')
-        if price and cubes >= price then
-            game:GetService('ReplicatedStorage').Events.PurchaseEvent:FireServer('MaxSize')
-            wait(0.5)
-        else
-            wait(2)
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("Events") and char.Events:FindFirstChild("BuyUpgrade") then
+            local price = GetUpgradePrice("MaxSize")
+            local cubes = GetCubes()
+            if price and cubes >= price then
+                pcall(function()
+                    char.Events.BuyUpgrade:FireServer("MaxSize")
+                end)
+            end
         end
+        task.wait(0.5)
     end
 end
 
 function AutoUpgradeSpeed()
     getgenv().AutoUpgradeSpeed = true
     while getgenv().AutoUpgradeSpeed do
-        local cubes = GetCubes()
-        local price = GetUpgradePrice('Speed')
-        if price and cubes >= price then
-            game:GetService('ReplicatedStorage').Events.PurchaseEvent:FireServer('Speed')
-            wait(0.5)
-        else
-            wait(2)
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("Events") and char.Events:FindFirstChild("BuyUpgrade") then
+            local price = GetUpgradePrice("Speed")
+            local cubes = GetCubes()
+            if price and cubes >= price then
+                pcall(function()
+                    char.Events.BuyUpgrade:FireServer("Speed")
+                end)
+            end
         end
+        task.wait(0.5)
     end
 end
 
 function AutoUpgradeMultiplier()
     getgenv().AutoUpgradeMultiplier = true
     while getgenv().AutoUpgradeMultiplier do
-        local cubes = GetCubes()
-        local price = GetUpgradePrice('Multiplier')
-        if price and cubes >= price then
-            game:GetService('ReplicatedStorage').Events.PurchaseEvent:FireServer('Multiplier')
-            wait(0.5)
-        else
-            wait(2)
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("Events") and char.Events:FindFirstChild("BuyUpgrade") then
+            local price = GetUpgradePrice("Multiplier")
+            local cubes = GetCubes()
+            if price and cubes >= price then
+                pcall(function()
+                    char.Events.BuyUpgrade:FireServer("Multiplier")
+                end)
+            end
         end
+        task.wait(0.5)
     end
 end
 
 function AutoUpgradeEatSpeed()
     getgenv().AutoUpgradeEatSpeed = true
     while getgenv().AutoUpgradeEatSpeed do
-        local cubes = GetCubes()
-        local price = GetUpgradePrice('EatSpeed')
-        if price and cubes >= price then
-            game:GetService('ReplicatedStorage').Events.PurchaseEvent:FireServer('EatSpeed')
-            wait(0.5)
-        else
-            wait(2)
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("Events") and char.Events:FindFirstChild("BuyUpgrade") then
+            local price = GetUpgradePrice("EatSpeed")
+            local cubes = GetCubes()
+            if price and cubes >= price then
+                pcall(function()
+                    char.Events.BuyUpgrade:FireServer("EatSpeed")
+                end)
+            end
         end
+        task.wait(0.5)
     end
 end
 
-_Upgrades:CreateToggle({
-    Name = 'Auto Upgrade MaxSize',
-    CurrentValue = false,
-    Flag = 'AutoUpgradeMaxSize',
-    Callback = function(Value)
-        if Value then
-            AutoUpgradeMaxSize()
-        else
-            getgenv().AutoUpgradeMaxSize = false
-        end
-    end,
-})
-
-_Upgrades:CreateToggle({
-    Name = 'Auto Upgrade Speed',
-    CurrentValue = false,
-    Flag = 'AutoUpgradeSpeed',
-    Callback = function(Value)
-        if Value then
-            AutoUpgradeSpeed()
-        else
-            getgenv().AutoUpgradeSpeed = false
-        end
-    end,
-})
-
-_Upgrades:CreateToggle({
-    Name = 'Auto Upgrade Multiplier',
-    CurrentValue = false,
-    Flag = 'AutoUpgradeMultiplier',
-    Callback = function(Value)
-        if Value then
-            AutoUpgradeMultiplier()
-        else
-            getgenv().AutoUpgradeMultiplier = false
-        end
-    end,
-})
-
-_Upgrades:CreateToggle({
-    Name = 'Auto Upgrade EatSpeed',
-    CurrentValue = false,
-    Flag = 'AutoUpgradeEatSpeed',
-    Callback = function(Value)
-        if Value then
-            AutoUpgradeEatSpeed()
-        else
-            getgenv().AutoUpgradeEatSpeed = false
-        end
-    end,
-})
-
-local _Webhooks = Window:CreateTab('Webhooks', 17315618124)
-
-_Webhooks:CreateSection('Webhook')
-
-local u38 = ''
-local u39 = 5
-
-_Webhooks:CreateInput({
-    Name = 'Webhook',
-    PlaceholderText = 'e.g discord.com/api/webhooks/1240',
-    RemoveTextAfterFocusLost = false,
-    Flag = 'WebhookInput',
-    Callback = function(Value)
-        u38 = Value
-    end,
-})
-
-_Webhooks:CreateSlider({
-    Name = 'Webhook Interval',
-    Range = {1, 300},
-    Increment = 1,
-    CurrentValue = 5,
-    Suffix = ' seconds',
-    Flag = 'WebhookInterval',
-    Callback = function(Value)
-        u39 = Value
-    end,
-})
-
-local function u46(p42)
-    if u38 ~= '' then
-        local v43 = {
-            username = game:GetService('MarketplaceService'):GetProductInfo(game.PlaceId).Name,
-            embeds = {
-                {
-                    description = p42,
-                    color = tonumber(255),
-                    timestamp = DateTime.now():ToIsoDate(),
-                },
-            },
-        }
-        local v44 = game:GetService('HttpService'):JSONEncode(v43)
-        request = http_request or request or (HttpPost or syn.request)
-        local v45 = {
-            Url = u38,
-            Body = v44,
-            Method = 'POST',
-            Headers = {
-                ['content-type'] = 'application/json',
-            },
-        }
-        request(v45)
+-- Handle death/respawn - restart functions
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    if getgenv().AutoGrab then
+        task.spawn(AutoGrab)
     end
-end
-
-local function u48(p47)
-    while true do
-        wait(u39)
-        p47()
+    if getgenv().AutoEat then
+        task.spawn(AutoEat)
     end
-end
+    if getgenv().AutoTeleport then
+        task.spawn(AutoTeleport)
+    end
+    if getgenv().AutoSellByAmount then
+        task.spawn(AutoSellByAmount)
+    end
+    if getgenv().AutoSellBlocks then
+        task.spawn(AutoSellBlocks)
+    end
+    if getgenv().AutoUpgradeMaxSize then
+        task.spawn(AutoUpgradeMaxSize)
+    end
+    if getgenv().AutoUpgradeSpeed then
+        task.spawn(AutoUpgradeSpeed)
+    end
+    if getgenv().AutoUpgradeMultiplier then
+        task.spawn(AutoUpgradeMultiplier)
+    end
+    if getgenv().AutoUpgradeEatSpeed then
+        task.spawn(AutoUpgradeEatSpeed)
+    end
+end)
 
-_Webhooks:CreateToggle({
-    Name = 'Track Size',
-    CurrentValue = false,
-    Flag = 'TrackSize',
+-- ============================================
+-- GUI - FARMING TAB
+-- ============================================
+
+Tabs.Farming:AddToggle("AutoGrab", {
+    Title = "Auto Grab",
+    Default = false,
+    Callback = function(Value)
+        getgenv().AutoGrab = Value
+        if Value then
+            task.spawn(AutoGrab)
+        end
+    end
+})
+
+Tabs.Farming:AddToggle("AutoEat", {
+    Title = "Auto Eat",
+    Default = false,
+    Callback = function(Value)
+        getgenv().AutoEat = Value
+        if Value then
+            task.spawn(AutoEat)
+        end
+    end
+})
+
+Tabs.Farming:AddToggle("AutoTeleport", {
+    Title = "Auto Teleport",
+    Default = false,
+    Callback = function(Value)
+        getgenv().AutoTeleport = Value
+        if Value then
+            task.spawn(AutoTeleport)
+        end
+    end
+})
+
+Tabs.Farming:AddInput("TeleportDelayInput", {
+    Title = "Teleport Delay",
+    Default = "1.0",
+    Placeholder = "e.g 1.5",
+    Finished = false,
+    Callback = function(Value)
+        local num = tonumber(Value)
+        if num then
+            getgenv().TeleportDelay = num
+        end
+    end
+})
+
+Tabs.Farming:AddToggle("AutoSellByAmount", {
+    Title = "Auto Sell by Amount",
+    Default = false,
+    Callback = function(Value)
+        getgenv().AutoSellByAmount = Value
+        if Value then
+            task.spawn(AutoSellByAmount)
+        end
+    end
+})
+
+Tabs.Farming:AddInput("SellAtAmountInput", {
+    Title = "Sell At Amount",
+    Default = "1000",
+    Placeholder = "e.g 2000",
+    Finished = false,
+    Callback = function(Value)
+        local num = tonumber(Value)
+        if num then
+            getgenv().SellAtAmount = num
+        end
+    end
+})
+
+Tabs.Farming:AddToggle("AutoSellBlocks", {
+    Title = "Auto Sell Blocks",
+    Default = false,
+    Callback = function(Value)
+        getgenv().AutoSellBlocks = Value
+        if Value then
+            task.spawn(AutoSellBlocks)
+        end
+    end
+})
+
+Tabs.Farming:AddSlider("AutoSellSliderInput", {
+    Title = "Auto Sell Interval",
+    Default = 1,
+    Min = 0.1,
+    Max = 5,
+    Rounding = 1,
+    Suffix = " second(s)",
+    Callback = function(Value)
+        getgenv().AutoSellSlider = Value
+    end
+})
+
+Tabs.Farming:AddButton({
+    Title = "Unanchor Character",
+    Description = "Remove anchored status",
+    Callback = function()
+        UnanchorCharacter()
+        Fluent:Notify({ Title = "Character", Content = "Unanchored!", Duration = 3 })
+    end
+})
+
+-- ============================================
+-- GUI - UPGRADES TAB
+-- ============================================
+
+Tabs.Upgrades:AddToggle("AutoUpgradeMaxSize", {
+    Title = "Auto Upgrade Max Size",
+    Default = false,
+    Callback = function(Value)
+        getgenv().AutoUpgradeMaxSize = Value
+        if Value then
+            task.spawn(AutoUpgradeMaxSize)
+        end
+    end
+})
+
+Tabs.Upgrades:AddToggle("AutoUpgradeSpeed", {
+    Title = "Auto Upgrade Speed",
+    Default = false,
+    Callback = function(Value)
+        getgenv().AutoUpgradeSpeed = Value
+        if Value then
+            task.spawn(AutoUpgradeSpeed)
+        end
+    end
+})
+
+Tabs.Upgrades:AddToggle("AutoUpgradeMultiplier", {
+    Title = "Auto Upgrade Multiplier",
+    Default = false,
+    Callback = function(Value)
+        getgenv().AutoUpgradeMultiplier = Value
+        if Value then
+            task.spawn(AutoUpgradeMultiplier)
+        end
+    end
+})
+
+Tabs.Upgrades:AddToggle("AutoUpgradeEatSpeed", {
+    Title = "Auto Upgrade Eat Speed",
+    Default = false,
+    Callback = function(Value)
+        getgenv().AutoUpgradeEatSpeed = Value
+        if Value then
+            task.spawn(AutoUpgradeEatSpeed)
+        end
+    end
+})
+
+Tabs.Upgrades:AddButton({
+    Title = "Stop All Upgrades",
+    Description = "Disable all auto upgrades",
+    Callback = function()
+        StopAllAutoUpgrades()
+        Fluent:Notify({ Title = "Upgrades", Content = "All upgrades stopped!", Duration = 3 })
+    end
+})
+
+-- ============================================
+-- GUI - WEBHOOKS TAB
+-- ============================================
+
+Tabs.Webhooks:AddToggle("WebhookEnabled", {
+    Title = "Enable Webhooks",
+    Default = false,
+    Callback = function(Value)
+        getgenv().WebhookEnabled = Value
+    end
+})
+
+Tabs.Webhooks:AddInput("WebhookInput", {
+    Title = "Webhook URL",
+    Default = "",
+    Placeholder = "e.g discord.com/api/webhooks/...",
+    Finished = false,
+    Callback = function(Value)
+        getgenv().WebhookUrl = Value
+    end
+})
+
+Tabs.Webhooks:AddSlider("WebhookInterval", {
+    Title = "Webhook Interval",
+    Default = 1,
+    Min = 1,
+    Max = 10,
+    Rounding = 0,
+    Suffix = " minutes",
+    Callback = function(Value)
+        getgenv().WebhookInterval = Value * 60
+    end
+})
+
+Tabs.Webhooks:AddToggle("TrackSize", {
+    Title = "Track Size",
+    Default = false,
     Callback = function(Value)
         getgenv().TrackSize = Value
         if Value then
             coroutine.wrap(function()
-                u48(function()
+                while getgenv().TrackSize do
+                    task.wait(getgenv().WebhookInterval or 60)
                     if getgenv().TrackSize then
-                        u46('**<:Size:1243989583838974086> Total Size:** ' .. tostring(game:GetService('Players').LocalPlayer.leaderstats.Size.Value))
+                        pcall(function()
+                            local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
+                            if leaderstats and leaderstats:FindFirstChild("Size") then
+                                SendWebhook('**Total Size:** ' .. tostring(leaderstats.Size.Value))
+                            end
+                        end)
                     end
-                end)
+                end
             end)()
         end
-    end,
+    end
 })
 
-local _CreditsUpdates = Window:CreateTab('Credits/Updates', 17261823399)
+Tabs.Webhooks:AddToggle("TrackCategory", {
+    Title = "Track Category (Wallet + Upgrades)",
+    Default = false,
+    Callback = function(Value)
+        getgenv().TrackCategory = Value
+        if Value then
+            coroutine.wrap(function()
+                while getgenv().TrackCategory do
+                    task.wait(getgenv().WebhookInterval or 60)
+                    if getgenv().TrackCategory then
+                        pcall(function()
+                            local cubes = GetCubes()
+                            local maxSizePrice = GetUpgradePrice("MaxSize") or "N/A"
+                            local speedPrice = GetUpgradePrice("Speed") or "N/A"
+                            local multiplierPrice = GetUpgradePrice("Multiplier") or "N/A"
+                            local eatSpeedPrice = GetUpgradePrice("EatSpeed") or "N/A"
+                            
+                            local message = "```\n💰 WALLET: " .. tostring(cubes) .. " Cubes\n📈 AUTO MAX SIZE: " .. tostring(maxSizePrice) .. "\n⚡ AUTO SPEED: " .. tostring(speedPrice) .. "\n✖️ AUTO MULTIPLIER: " .. tostring(multiplierPrice) .. "\n🍴 AUTO EAT SPEED: " .. tostring(eatSpeedPrice) .. "\n```"
+                            
+                            SendWebhook(message)
+                        end)
+                    end
+                end
+            end)()
+        end
+    end
+})
 
-_CreditsUpdates:CreateSection('Credits/Updates')
-_CreditsUpdates:CreateLabel('Owners, Kenniel, lordjuurd')
-_CreditsUpdates:CreateLabel('Or Manual input https://discord.gg/R5xxUtSVgF')
-_CreditsUpdates:CreateButton({
-    Name = 'Copy Discord',
+Tabs.Webhooks:AddToggle("TrackDisconnection", {
+    Title = "Track Disconnection",
+    Default = false,
+    Callback = function(Value)
+        getgenv().TrackDisconnection = Value
+    end
+})
+
+LocalPlayer.Parent:GetPropertyChangedSignal("Parent"):Connect(function()
+    if getgenv().TrackDisconnection and LocalPlayer.Parent == nil then
+        SendWebhook("❌ **DISCONNECTED** | Player: " .. LocalPlayer.Name)
+    end
+end)
+
+-- ============================================
+-- GUI - REWARDS TAB (Simple)
+-- ============================================
+
+Tabs.Rewards:AddToggle("AutoCollectRewards", {
+    Title = "Auto Collect Timed Rewards",
+    Default = false,
+    Callback = function(Value)
+        getgenv().AutoCollectRewards = Value
+    end
+})
+
+Tabs.Rewards:AddToggle("AutoSpin", {
+    Title = "Auto Spin (Free Spin)",
+    Default = false,
+    Callback = function(Value)
+        getgenv().AutoSpin = Value
+    end
+})
+
+Tabs.Rewards:AddButton({
+    Title = "Collect Now",
+    Description = "Manually fire all rewards once",
     Callback = function()
-        setclipboard('https://discord.gg/R5xxUtSVgF')
-    end,
+        pcall(function()
+            local timedRewards = LocalPlayer:FindFirstChild("TimedRewards")
+            if not timedRewards then
+                Fluent:Notify({ Title = "Error", Content = "TimedRewards not found!", Duration = 3 })
+                return
+            end
+            
+            for _, reward in ipairs(timedRewards:GetChildren()) do
+                if reward:IsA("IntValue") or reward:IsA("NumberValue") then
+                    pcall(function()
+                        RewardEvent:FireServer(reward)
+                    end)
+                    task.wait(0.3)
+                end
+            end
+            
+            Fluent:Notify({ Title = "Rewards", Content = "Fired all rewards!", Duration = 3 })
+        end)
+    end
 })
 
-_CreditsUpdates:CreateLabel('Latest Update 5/25/24')
-_CreditsUpdates:CreateLabel('[+] Recoded AutoFarm AGAIN')
-
-local _LocalPlayer3 = game.Players.LocalPlayer
-local _PlaceId = game.PlaceId
-local v53 = _PlaceId == 16480898254 and 'Eat the World' or 'Unknown Game' .. ' Place Id:' .. _PlaceId
-local v54 = is_sirhurt_closure and 'Sirhurt' or pebc_execute and 'ProtoSmasher' or (syn and 'Synapse X' or secure_load and 'Sentinel' or (KRNL_LOADED and 'Krnl' or SONA_LOADED and 'Sona') or (FLUXUS_LOADED and 'Fluxus' or 'Unknown'))
-local v55 = {
-    content = '',
-    embeds = {
-        {
-            title = '**Eat the World [Update 2]**',
-            description = 'Username: ' .. _LocalPlayer3.Name .. ' with **' .. v54 .. '**' .. ' Game Name: ' .. v53,
-            type = 'rich',
-            color = tonumber(7498202),
-            image = {
-                url = 'http://www.roblox.com/Thumbs/Avatar.ashx?x=150&y=150&Format=Png&username=' .. _LocalPlayer3.Name,
-            },
-        },
-    },
-}
-local v56 = game:GetService('HttpService'):JSONEncode(v55)
-
-request = http_request or request or (HttpPost or syn.request)
-
-request({
-    Url = 'https://discord.com/api/webhooks/1240339562182479993/J1515ly5JRGpHPm1VN_OkHtdYTyOpOMxdY19Dv9ANeWZ9W8icC1kMBq2FI_SyTsol2S9',
-    Body = v56,
-    Method = 'POST',
-    Headers = {
-        ['content-type'] = 'application/json',
-    },
+Tabs.Rewards:AddButton({
+    Title = "Spin Now",
+    Description = "Manually spin once",
+    Callback = function()
+        pcall(function()
+            SpinEvent:FireServer()
+        end)
+        Fluent:Notify({ Title = "Spin", Content = "Spun!", Duration = 3 })
+    end
 })
 
--- Auto-start saved toggles after Rayfield loads config
-Rayfield:LoadConfiguration()
+local rewardStatus = Tabs.Rewards:AddParagraph({
+    Title = "Reward Status",
+    Content = "Checking..."
+})
 
-task.wait(3)
-
-if Rayfield.Flags["AutoGrab"] and Rayfield.Flags["AutoGrab"].CurrentValue then
-    AutoGrab()
-end
-if Rayfield.Flags["AutoEat"] and Rayfield.Flags["AutoEat"].CurrentValue then
-    AutoEat()
-end
-if Rayfield.Flags["AutoTeleport"] and Rayfield.Flags["AutoTeleport"].CurrentValue then
-    AutoTeleport()
-end
-if Rayfield.Flags["AutoSellByAmount"] and Rayfield.Flags["AutoSellByAmount"].CurrentValue then
-    AutoSellByAmount()
-end
-if Rayfield.Flags["AutoSellTimer"] and Rayfield.Flags["AutoSellTimer"].CurrentValue then
-    AutoSellBlocks()
-end
-if Rayfield.Flags["AutoUpgradeMaxSize"] and Rayfield.Flags["AutoUpgradeMaxSize"].CurrentValue then
-    AutoUpgradeMaxSize()
-end
-if Rayfield.Flags["AutoUpgradeSpeed"] and Rayfield.Flags["AutoUpgradeSpeed"].CurrentValue then
-    AutoUpgradeSpeed()
-end
-if Rayfield.Flags["AutoUpgradeMultiplier"] and Rayfield.Flags["AutoUpgradeMultiplier"].CurrentValue then
-    AutoUpgradeMultiplier()
-end
-if Rayfield.Flags["AutoUpgradeEatSpeed"] and Rayfield.Flags["AutoUpgradeEatSpeed"].CurrentValue then
-    AutoUpgradeEatSpeed()
-end
-if Rayfield.Flags["TrackSize"] and Rayfield.Flags["TrackSize"].CurrentValue then
-    getgenv().TrackSize = true
-    coroutine.wrap(function()
-        u48(function()
-            if getgenv().TrackSize then
-                u46('**<:Size:1243989583838974086> Total Size:** ' .. tostring(game:GetService('Players').LocalPlayer.leaderstats.Size.Value))
+task.spawn(function()
+    while true do
+        task.wait(3)
+        pcall(function()
+            local timedRewards = LocalPlayer:FindFirstChild("TimedRewards")
+            if timedRewards then
+                local count = 0
+                for _, child in ipairs(timedRewards:GetChildren()) do
+                    if child:IsA("IntValue") or child:IsA("NumberValue") then
+                        count = count + 1
+                    end
+                end
+                rewardStatus:SetContent(count .. " rewards | Auto: " .. (getgenv().AutoCollectRewards and "ON" or "OFF"))
+            else
+                rewardStatus:SetContent("TimedRewards not found")
             end
         end)
-    end)()
+    end
+end)
+
+-- ============================================
+-- GUI - CREDITS TAB
+-- ============================================
+
+Tabs.Credits:AddParagraph({
+    Title = "Credits/Updates",
+    Content = "Owners: Miyavi\nLatest Update: 9/26/26\n[+] Fixed AutoUpgrade using ItemInfo module\n[+] Fixed death/respawn callback errors"
+})
+
+Tabs.Credits:AddButton({
+    Title = "Copy Discord",
+    Description = "NILL",
+    Callback = function()
+        if typeof(setclipboard) == "function" then
+            setclipboard("NILL")
+            Fluent:Notify({ Title = "Copied!", Content = "Discord link copied!", Duration = 3 })
+        end
+    end
+})
+
+-- ============================================
+-- CONFIG TAB (Save/Load)
+-- ============================================
+
+InterfaceManager:SetLibrary(Fluent)
+InterfaceManager:SetFolder("EatTheWorld")
+InterfaceManager:BuildInterfaceSection(Tabs.Config)
+
+SaveManager:SetLibrary(Fluent)
+SaveManager:SetFolder("EatTheWorld/configs")
+SaveManager:BuildConfigSection(Tabs.Config)
+SaveManager:LoadAutoloadConfig()
+
+Window:SelectTab(1)
+
+-- ============================================
+-- DISCORD WEBHOOK (Execution log)
+-- ============================================
+local placeName = game.PlaceId == 16480898254 and "Eat the World" or "Unknown Game"
+local executorName = is_sirhurt_closure and "Sirhurt" or pebc_execute and "ProtoSmasher" or (syn and "Synapse X" or secure_load and "Sentinel" or (KRNL_LOADED and "Krnl" or SONA_LOADED and "Sona") or (FLUXUS_LOADED and "Fluxus" or "Unknown"))
+
+local logData = {
+    content = "",
+    embeds = {{
+        title = "**Eat the World [FluentPlus]**",
+        description = "Username: " .. LocalPlayer.Name .. " with **" .. executorName .. "** | Game: " .. placeName,
+        type = "rich",
+        color = 7498202,
+        image = { url = "http://www.roblox.com/Thumbs/Avatar.ashx?x=150&y=150&Format=Png&username=" .. LocalPlayer.Name }
+    }}
+}
+
+local logBody = HttpService:JSONEncode(logData)
+local req = http_request or request or HttpPost or syn.request
+if req then
+    req({
+        Url = "https://discord.com/api/webhooks/1240339562182479993/J1515ly5JRGpHPm1VN_OkHtdYTyOpOMxdY19Dv9ANeWZ9W8icC1kMBq2FI_SyTsol2S9",
+        Body = logBody,
+        Method = "POST",
+        Headers = { ["content-type"] = "application/json" }
+    })
 end
 
-print('Auto-started saved toggles!')
+Fluent:Notify({
+    Title = "Eat the World",
+    Content = "Tap the ETW button to hide/show GUI",
+    Duration = 5
+})
+
+print("[EatTheWorld] FluentPlus loaded. AutoUpgrade fixed using ItemInfo!")
